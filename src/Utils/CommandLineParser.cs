@@ -14,7 +14,7 @@ namespace IPK25_CHAT
                 {
                     case "-t":
                         if (i + 1 >= args.Length) throw new ArgumentException("Missing value for -t argument");
-                        arguments.TransportProtocol = args[++i];
+                        arguments.TransportProtocol = ParseTransportProtocol(args[++i]);
                         break;
                         
                     case "-s":
@@ -52,6 +52,16 @@ namespace IPK25_CHAT
 
             arguments.Validate();
             return arguments;
+        }
+
+        private static TransportProtocol ParseTransportProtocol(string value)
+        {
+            return value.ToLower() switch
+            {
+                "tcp" => TransportProtocol.Tcp,
+                "udp" => TransportProtocol.Udp,
+                _ => throw new ArgumentException("Transport protocol must be either 'tcp' or 'udp'")
+            };
         }
     }
 } 

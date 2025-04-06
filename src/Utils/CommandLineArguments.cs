@@ -4,7 +4,7 @@ namespace IPK25_CHAT
 {
     public class CommandLineArguments
     {
-        public string TransportProtocol { get; set; }
+        public TransportProtocol TransportProtocol { get; set; }
         public string ServerAddress { get; set; }
         public ushort ServerPort { get; set; } = 4567;
         public ushort UdpTimeout { get; set; } = 250;
@@ -12,14 +12,8 @@ namespace IPK25_CHAT
 
         public void Validate()
         {
-            if (string.IsNullOrEmpty(TransportProtocol))
-                throw new ArgumentException("Transport protocol (-t) is required");
-                
             if (string.IsNullOrEmpty(ServerAddress))
                 throw new ArgumentException("Server address (-s) is required");
-                
-            if (TransportProtocol != "tcp" && TransportProtocol != "udp")
-                throw new ArgumentException("Transport protocol must be either 'tcp' or 'udp'");
         }
 
         public static void PrintHelp()
