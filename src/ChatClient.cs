@@ -14,13 +14,25 @@ namespace IPK25_CHAT
         private string? _requestedChannel; 
         private CancellationTokenSource _cancellationTokenSource;
         private bool _isTerminating = false;
+        private bool _Logging = false;
 
-        public ChatClient(IChatProtocol protocol)
+        public ChatClient(IChatProtocol protocol, bool verboseLogging = false)
         {
             _protocol = protocol;
             _protocol.MessageReceived += HandleMessageReceived;
             _protocol.Error += HandleError;
             _cancellationTokenSource = new CancellationTokenSource();
+            _Logging = verboseLogging;
+            
+            // Применяем настройку логирования для протоколов
+            if (_protocol is TcpProtocol tcpProtocol)
+            {
+                tcpProtocol.Logging = _Logging;
+            }
+            else if (_protocol is UdpProtocol udpProtocol)
+            {
+                udpProtocol.Logging = _Logging;
+            }
         }
 
         public async Task RunAsync()
@@ -35,7 +47,7 @@ namespace IPK25_CHAT
                     
                     if (input == null)
                     {
-                        Console.WriteLine("End of input detected, terminating gracefully...");
+                        LogDebug("End of input detected, terminating gracefully...");
                         await GracefulShutdownAsync();
                         break;
                     }
@@ -55,7 +67,7 @@ namespace IPK25_CHAT
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Client operation was cancelled");
+                LogDebug("Client operation was cancelled");
             }
             catch (Exception ex)
             {
@@ -78,7 +90,7 @@ namespace IPK25_CHAT
             {
                 try
                 {
-                    Console.WriteLine("Interrupt signal received (Ctrl+C), terminating gracefully...");
+                    LogDebug("Interrupt signal received (Ctrl+C), terminating gracefully...");
                     
                     using var timeoutCts = new CancellationTokenSource(5000);
                     
@@ -86,7 +98,7 @@ namespace IPK25_CHAT
                     
                     if (await Task.WhenAny(shutdownTask, Task.Delay(4000, timeoutCts.Token)) != shutdownTask)
                     {
-                        Console.WriteLine("Shutdown taking too long, forcing exit...");
+                        LogDebug("Shutdown taking too long, forcing exit...");
                         Environment.Exit(1);
                     }
                 }
@@ -113,28 +125,28 @@ namespace IPK25_CHAT
                 
                 try
                 {
-                    if (_protocol != null && _isAuthenticated)
+                    if (_isAuthenticated)
                     {
-                        Console.WriteLine("Sending BYE message to server...");
+                        LogDebug("Sending BYE message to server...");
                         
                         var byeTask = _protocol.SendByeAsync(_displayName);
                         await Task.WhenAny(byeTask, Task.Delay(1000, timeoutCts.Token));
                         
                         if (!byeTask.IsCompleted)
                         {
-                            Console.WriteLine("BYE message send timed out");
+                            LogDebug("BYE message send timed out");
                         }
                         
                         if (_protocol is UdpProtocol && !timeoutCts.IsCancellationRequested)
                         {
-                            Console.WriteLine("Waiting for server to acknowledge BYE message...");
+                            LogDebug("Waiting for server to acknowledge BYE message...");
                             await Task.Delay(500, timeoutCts.Token);
                         }
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.WriteLine("BYE operation was cancelled due to timeout");
+                    LogDebug("BYE operation was cancelled due to timeout");
                 }
                 
                 try
@@ -146,22 +158,22 @@ namespace IPK25_CHAT
                         
                         if (!disconnectTask.IsCompleted)
                         {
-                            Console.WriteLine("Disconnect operation timed out");
+                            LogDebug("Disconnect operation timed out");
                         }
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.WriteLine("Disconnect operation was cancelled due to timeout");
+                    LogDebug("Disconnect operation was cancelled due to timeout");
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error during shutdown: {ex.Message}");
+                LogDebug($"Error during shutdown: {ex.Message}");
             }
             finally
             {
-                Console.WriteLine("Shutdown complete");
+                LogDebug("Shutdown complete");
                 Environment.Exit(0);
             }
         }
@@ -185,6 +197,10 @@ namespace IPK25_CHAT
 
                         await HandleAuthAsync(parts[1], parts[2], parts[3]);
                     }
+                    else
+                    {
+                        Console.WriteLine("Already authenticated");
+                    }
                     break;
 
                 case "/join":
@@ -202,8 +218,12 @@ namespace IPK25_CHAT
 
                         await _protocol.SendJoinAsync(requestedChannel, _displayName);
 
-                        Console.WriteLine(
+                        LogDebug(
                             $"Join request sent for channel '{requestedChannel}'. Waiting for server confirmation...");
+                    }
+                    else
+                    {
+                        Console.WriteLine("You must be authenticated to join a channel");
                     }
                     break;
 
@@ -231,19 +251,19 @@ namespace IPK25_CHAT
         {
             try
             {
+                if (_currentState == ClientState.Init){
+                    _currentState = ClientState.Auth;
+                }
+                
                 await _protocol.SendAuthAsync(username, displayName, secret);
                 
                 _displayName = displayName;
                 
-                Console.WriteLine($"Authentication request sent as {displayName}. Waiting for server response...");
-                
-                if (_currentState == ClientState.Init)
-                {
-                    _currentState = ClientState.Auth;
-                }
+                LogDebug($"Authentication request sent as {displayName}. Waiting for server response...");
             }
             catch (Exception ex)
             {
+                _currentState = ClientState.Init;
                 Console.WriteLine($"Authentication Failure: {ex.Message}");
             }
         }
@@ -259,41 +279,61 @@ namespace IPK25_CHAT
             if (string.IsNullOrEmpty(_currentChannel))
             {
                 _currentChannel = "default";
-                Console.WriteLine("You are in the default channel");
+                LogDebug("You are in the default channel");
             }
 
-            Console.WriteLine($"Sending message to channel {_currentChannel}");
+            // Выводим сообщение об отправке только в режиме подробного логирования
+            LogDebug($"Sending message to channel {_currentChannel}");
+            
             await _protocol.SendMessageAsync(_displayName, message);
         }
 
         private void HandleMessageReceived(object sender, MessageReceivedEventArgs e)
         {
-            Console.WriteLine($"DEBUG: Получено сообщение типа {e.Type}, содержимое: '{e.Content}', отправитель: '{e.DisplayName}'");
-            
             try
             {
                 switch (e.Type)
                 {
                     case MessageType.Reply:
-                        string[] replyParts = e.Content.Split(" ");
+                        string content = e.Content;
+                        if (content.StartsWith("REPLY "))
+                        {
+                            content = content.Substring(6); 
+                        }
+                        
+                        string[] replyParts = content.Split(" ");
                         if (replyParts[0] == "OK")
                         {
-                            Console.WriteLine($"Action Success: {e.Content.Split(new[] { " IS " }, StringSplitOptions.None)[1]}");
+                            string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
+                            Console.WriteLine($"Action Success: {replyMessage}");
+                            
+                            // Сохраняем предыдущее состояние для логирования
+                            ClientState previousState = _currentState;
+
+                            
                             if (_currentState == ClientState.Auth)
                             {
                                 _isAuthenticated = true;
                                 _currentChannel = "default";
+                                
+                                LogDebug("Authentication successful, setting _isAuthenticated=true");
                             }
                             else
                             {
                                 _currentChannel = _requestedChannel;
                                 _requestedChannel = null;
-
                             }
                             _currentState = ClientState.Open;
+                            
+                            // Логирование изменений состояния только при подробном логировании
+                            LogDebug($"State changed: {previousState} -> {_currentState}");
                         }
                         else {
-                            Console.WriteLine("DEBUG: Negative reply from server");                            Console.WriteLine($"Action Failure: {e.Content.Split(new[] { " IS " }, StringSplitOptions.None)[1]}");
+                            string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
+                            Console.WriteLine($"Action Failure: {replyMessage}");
+                            
+                            // Сохраняем предыдущее состояние для логирования
+                            
                             if (_currentState == ClientState.Join) _currentState = ClientState.Open;
                             _requestedChannel = null;
                         }
@@ -301,41 +341,60 @@ namespace IPK25_CHAT
                     
                     case MessageType.Message:
                         if (_currentState == ClientState.Open || _currentState == ClientState.Join)
-                            Console.WriteLine($"{e.DisplayName}: {e.Content}");
+                        {
+                            if (_Logging)
+                            {
+                                LogDebug($"Processing message: '{e.Content}', DisplayName: '{e.DisplayName}'");
+                            }
+                            
+                            // Теперь displayName и content уже правильно разделены в TcpProtocol
+                            if (!string.IsNullOrEmpty(e.DisplayName) && !string.IsNullOrEmpty(e.Content))
+                            {
+                                Console.WriteLine($"{e.DisplayName}: {e.Content}");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Received empty message");
+                            }
+                        }
                         break;
                     
                     case MessageType.Error:
-                        Console.WriteLine("Received ERR message from server");
+                        LogDebug("Received ERR message from server");
                         _currentState = ClientState.End;
                         Environment.Exit(0);
                         break;   
                     
                     case MessageType.Bye:
-                        Console.WriteLine("Received BYE message from server");
+                        LogDebug("Received BYE message from server");
                         _currentState = ClientState.End;
                         Environment.Exit(0);
                         break;    
                     
                     default:
-                        Console.WriteLine($"Unknown message type: {e.Type} - {e.Content}");
+                        LogDebug($"Unknown message type: {e.Type} - {e.Content}");
                         break;
                 }
                 
-                Console.WriteLine($"DEBUG: Текущее состояние - аутентифицирован: {_isAuthenticated}, текущий канал: {_currentChannel}, отображаемое имя: {_displayName}");
+                // Отладочный вывод текущего состояния только если включено подробное логирование
+                if (_Logging)
+                {
+                    LogDebug($"Current state is {_currentState}, isAuthenticated={_isAuthenticated}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"DEBUG: Error occured during message parsing: {ex.Message}");
+                LogDebug($"Error occurred during message parsing: {ex.Message}");
             }
         }
         
 
         private void HandleError(object sender, ErrorEventArgs e)
         {
-            Console.Error.WriteLine($"Error: {e.Message}");
+            LogDebug($"Error: {e.Message}");
             if (e.Exception != null)
             {
-                Console.Error.WriteLine($"Exception: {e.Exception}");
+                LogDebug($"Exception: {e.Exception}");
             }
         }
 
@@ -347,6 +406,14 @@ namespace IPK25_CHAT
             Console.WriteLine("  /rename <displayname> - Change your display name");
             Console.WriteLine("  /help - Show this help message");
             Console.WriteLine("Press Ctrl+C or Ctrl+D to gracefully terminate the client");
+        }
+        
+        private void LogDebug(string message)
+        {
+            if (_Logging)
+            {
+                Console.Error.WriteLine($"CLIENT DEBUG: {message}");
+            }
         }
     }
     

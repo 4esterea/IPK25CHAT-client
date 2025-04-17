@@ -16,10 +16,21 @@ namespace IPK25_CHAT
         private bool _isConnected = false;
         private Task _receiveTask;
         private bool _isDisposing = false;
+        
+        // Включение/выключение подробного логирования
+        private bool _Logging = true;
+        
+        // Публичное свойство для управления логированием
+        public bool Logging 
+        { 
+            get { return _Logging; } 
+            set { _Logging = value; }
+        }
 
-        public TcpProtocol(string server, int port)
+        public TcpProtocol(string server, int port, bool logging)
         {
-            Console.WriteLine("Waiting to connect to server...");
+            _Logging = logging;
+            LogDebug($"Connecting to {server}:{port} using TCP...");
             
             // Start a loop for periodic connection attempts
             bool connected = false;
@@ -51,6 +62,15 @@ namespace IPK25_CHAT
             }
         }
 
+        // Вспомогательный метод для логирования
+        private void LogDebug(string message)
+        {
+            if (_Logging)
+            {
+                Console.Error.WriteLine($"TCP DEBUG: {message}");
+            }
+        }
+
         private async Task InitializeConnection(string server, int port)
         {
             try
@@ -62,6 +82,7 @@ namespace IPK25_CHAT
                 }
                 
                 _client = new TcpClient();
+                LogDebug($"Attempting to connect to {server}:{port}...");
                 
                 // Set timeout for connection operation
                 using var timeoutCts = new CancellationTokenSource(5000); // 5 seconds timeout
@@ -74,28 +95,49 @@ namespace IPK25_CHAT
                 
                 if (!connectTask.IsCompleted)
                 {
+                    LogDebug($"Connection timeout exceeded for {server}:{port}");
                     throw new TimeoutException($"Connection timeout exceeded for {server}:{port}");
                 }
                 
                 // If connection task completed with error, throw exception
                 if (connectTask.IsFaulted)
                 {
+                    LogDebug($"Connection failed with error: {connectTask.Exception?.InnerException?.Message}");
                     throw connectTask.Exception;
                 }
                 
+                LogDebug($"Connected to {server}:{port} successfully");
+                
                 // Initialize streams
                 _stream = _client.GetStream();
-                _reader = new StreamReader(_stream, Encoding.UTF8);
-                _writer = new StreamWriter(_stream, Encoding.UTF8);
-                _writer.AutoFlush = true;
+                _reader = new StreamReader(_stream, new UTF8Encoding(false));
+                _writer = new StreamWriter(_stream, new UTF8Encoding(false)) 
+                { 
+                    NewLine = "\r\n",
+                    AutoFlush = true 
+                };
                 _isConnected = true;
 
+                LogDebug($"TCP streams initialized with NewLine=\\r\\n, starting message receiver task");
+                
+                // Check if connection is actually established
+                if (_client.Connected)
+                {
+                    LogDebug($"Socket is confirmed as connected: {_client.Connected}");
+                    LogDebug($"Local endpoint: {_client.Client.LocalEndPoint}, Remote endpoint: {_client.Client.RemoteEndPoint}");
+                }
+                else
+                {
+                    LogDebug("Warning: Socket reports as not connected despite successful connection task");
+                }
+                
                 // Start message receiving task
                 _receiveTask = Task.Run(ReceiveMessagesAsync);
             }
             catch (Exception ex)
             {
                 _isConnected = false;
+                LogDebug($"Failed to connect: {ex.Message}");
                 OnError($"Failed to connect to {server}:{port}", ex);
                 throw;
             }
@@ -105,16 +147,20 @@ namespace IPK25_CHAT
         {
             try
             {
+                LogDebug("Message receiver task started, waiting for incoming messages");
+                
                 while (_isConnected && !_isDisposing)
                 {
                     string message = await _reader.ReadLineAsync();
                     if (message == null)
                     {
                         // Connection closed by server
+                        LogDebug("Connection closed by server (null message received)");
                         OnMessageReceived(MessageType.Bye, "Connection closed by server");
                         break;
                     }
 
+                    LogDebug($"Received raw message: '{message}'");
                     ProcessMessage(message);
                 }
             }
@@ -126,6 +172,7 @@ namespace IPK25_CHAT
             {
                 if (!_isDisposing)
                 {
+                    LogDebug($"Connection lost: {ioe.Message}, SocketError: {((SocketException)ioe.InnerException).SocketErrorCode}");
                     OnMessageReceived(MessageType.Bye, "Connection lost");
                 }
             }
@@ -133,6 +180,7 @@ namespace IPK25_CHAT
             {
                 if (!_isDisposing)
                 {
+                    LogDebug($"Error receiving messages: {ex.Message}");
                     OnError("Error receiving messages", ex);
                 }
             }
@@ -149,7 +197,8 @@ namespace IPK25_CHAT
                 if (string.IsNullOrEmpty(message))
                     return;
 
-                // Remove REPLY prefix if present
+                LogDebug($"Processing message: '{message}'");
+                
                 string content = message;
                 string displayName = null;
                 MessageType messageType = MessageType.Message;
@@ -158,62 +207,139 @@ namespace IPK25_CHAT
                 {
                     messageType = MessageType.Reply;
                     content = message.Substring(5).Trim();
+                    LogDebug($"Parsed as REPLY: '{content}'");
                 }
                 else if (message.StartsWith("ERR"))
                 {
                     messageType = MessageType.Error;
                     content = message.Substring(3).Trim();
+                    LogDebug($"Parsed as ERR: '{content}'");
                 }
                 else if (message.StartsWith("BYE"))
                 {
                     messageType = MessageType.Bye;
                     content = message.Substring(3).Trim();
+                    LogDebug($"Parsed as BYE: '{content}'");
+                }
+                else if (message.StartsWith("MSG FROM"))
+                {
+                    messageType = MessageType.Message;
+                    
+                    // Удаляем префикс "MSG FROM "
+                    string msgBody = message.Substring(9).Trim();
+                    
+                    // Находим разделитель " IS "
+                    int isIndex = msgBody.IndexOf(" IS ");
+                    if (isIndex > 0)
+                    {
+                        // Извлекаем имя и содержание
+                        displayName = msgBody.Substring(0, isIndex).Trim();
+                        content = msgBody.Substring(isIndex + 4).Trim();
+                        LogDebug($"Parsed as MSG: displayName='{displayName}', content='{content}'");
+                    }
+                    else
+                    {
+                        // Если нет разделителя, считаем всё содержимым
+                        displayName = "Unknown";
+                        content = msgBody;
+                        LogDebug($"Parsed as MSG without IS separator: content='{content}'");
+                    }
                 }
                 else
                 {
-                    // Process message in the correct format
-                    int colonIndex = message.IndexOf(" FROM ");
-                    if (colonIndex > 0)
-                    {
-                        displayName = message.Substring(colonIndex + 6).Trim(); // Extract username
-                        content = message.Substring(0, colonIndex).Trim(); // Extract message
-                    }
+                    // Для других типов сообщений
+                    LogDebug($"Unknown message format: '{message}'");
                 }
 
+                LogDebug($"Forwarding message: Type={messageType}, Content='{content}', DisplayName='{displayName}'");
                 OnMessageReceived(messageType, content, displayName);
             }
             catch (Exception ex)
             {
+                LogDebug($"Error processing message '{message}': {ex.Message}");
                 OnError($"Error processing message: {message}", ex);
             }
         }
 
         public override async Task SendAuthAsync(string username, string displayName, string secret)
         {
+            LogDebug($"Sending AUTH: username='{username}', displayName='{displayName}', secret='{secret}'");
             await SendCommandAsync($"AUTH {username} AS {displayName} USING {secret}");
         }
 
         public override async Task SendJoinAsync(string channel, string displayName)
         {
+            LogDebug($"Sending JOIN: channel='{channel}', displayName='{displayName}'");
             await SendCommandAsync($"JOIN {channel} AS {displayName}");
         }
 
         public override async Task SendMessageAsync(string displayName, string message)
         {
+            LogDebug($"Sending MSG: displayName='{displayName}', message='{message}'");
             await SendCommandAsync($"MSG FROM {displayName} IS {message}");
         }
         
         public override async Task SendByeAsync(string displayName)
         {
+            LogDebug($"Sending BYE: displayName='{displayName}'");
             await SendCommandAsync($"BYE FROM {displayName}");
         }
         
+        private async Task SendCommandAsync(string command)
+        {
+            if (!_isConnected)
+            {
+                LogDebug("Cannot send command - not connected to server");
+                throw new InvalidOperationException("Not connected to server");
+            }
+
+            try
+            {
+                // Проверка состояния соединения перед отправкой
+                if (_client?.Client?.Connected != true)
+                {
+                    LogDebug($"Warning: Socket reports disconnected state, but _isConnected={_isConnected}");
+                    LogDebug("Attempting to send command anyway...");
+                }
+
+                LogDebug($"Sending raw command: '{command}'");
+                DebugLogRawData(command, true);
+                
+                // Добавим явный вывод о том, что и как отправляется
+                byte[] bytes = Encoding.UTF8.GetBytes(command + "\r\n");
+                LogDebug($"Sending {bytes.Length} bytes: [{BitConverter.ToString(bytes)}]");
+                
+                await _writer.WriteLineAsync(command);
+                await _writer.FlushAsync();
+                LogDebug("Command sent successfully, waiting for response...");
+                
+                // Ожидание короткое время для получения ответа
+                await Task.Delay(100);
+                if (_client?.Available > 0)
+                {
+                    LogDebug($"Server immediately responded with {_client.Available} bytes available");
+                }
+                else
+                {
+                    LogDebug("No immediate response from server");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"Failed to send command '{command}': {ex.Message}");
+                LogDebug($"Exception type: {ex.GetType().Name}, Stack trace: {ex.StackTrace}");
+                OnError($"Failed to send command: {command}", ex);
+                throw;
+            }
+        }
+
         public override async Task DisconnectAsync()
         {
             if (_isDisposing)
                 return;
-                
+        
             _isDisposing = true;
+            LogDebug("Starting TCP disconnect process");
             
             try
             {
@@ -227,16 +353,19 @@ namespace IPK25_CHAT
                 {
                     try 
                     {
+                        LogDebug("Flushing writer buffer");
                         // Flush buffers and close streams with timeout
                         var flushTask = _writer.FlushAsync();
                         await Task.WhenAny(flushTask, Task.Delay(500, timeoutCts.Token));
                     }
                     catch (OperationCanceledException)
                     {
+                        LogDebug("Writer flush operation cancelled due to timeout");
                         // Ignore cancellation - continue closing
                     }
                     catch (Exception ex)
                     {
+                        LogDebug($"Error flushing writer: {ex.Message}");
                         Console.Error.WriteLine($"Error flushing writer: {ex.Message}");
                     }
                 }
@@ -244,9 +373,11 @@ namespace IPK25_CHAT
                 // Close resources in correct order
                 try 
                 {
+                    LogDebug("Disposing stream resources");
                     _reader?.Dispose();
                     _writer?.Dispose();
                     
+                    LogDebug("Shutting down socket connection");
                     // Proper connection shutdown without RST flag [RFC9293]
                     if (_client?.Connected == true)
                     {
@@ -254,18 +385,22 @@ namespace IPK25_CHAT
                         try 
                         {
                             _client?.Client?.Shutdown(SocketShutdown.Both);
+                            LogDebug("Socket shutdown completed");
                         }
-                        catch 
+                        catch (Exception ex)
                         {
+                            LogDebug($"Socket shutdown error: {ex.Message}");
                             // Ignore errors when closing socket
                         }
                         _client?.Close();
                     }
                     
                     _client?.Dispose();
+                    LogDebug("All TCP resources disposed");
                 }
                 catch (Exception ex)
                 {
+                    LogDebug($"Error disposing resources: {ex.Message}");
                     Console.Error.WriteLine($"Error disposing resources: {ex.Message}");
                 }
                 
@@ -273,30 +408,22 @@ namespace IPK25_CHAT
                 _writer = null;
                 _stream = null;
                 _client = null;
+                LogDebug("TCP disconnect process completed");
             }
             catch (Exception ex)
             {
+                LogDebug($"Failed to disconnect: {ex.Message}");
                 OnError("Failed to disconnect", ex);
             }
         }
-
-        private async Task SendCommandAsync(string command)
+        
+        private void DebugLogRawData(string data, bool isSending = false)
         {
-            if (!_isConnected)
+            if (_Logging)
             {
-                throw new InvalidOperationException("Not connected to server");
-            }
-
-            try
-            {
-                await _writer.WriteLineAsync(command);
-                await _writer.FlushAsync();
-            }
-            catch (Exception ex)
-            {
-                OnError($"Failed to send command: {command}", ex);
-                throw;
+                Console.Error.WriteLine($"[DEBUG] {(isSending ? "SENDING" : "RECEIVED")}: {data}");
             }
         }
     }
+    
 } 

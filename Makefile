@@ -1,4 +1,4 @@
-ASM_NAME = "ipk25-chat"
+ASM_NAME = "ipk25chat-client"
 
 BUILD: CLEAN *.csproj
 	dotnet publish -c Release -o .

@@ -43,6 +43,10 @@ namespace IPK25_CHAT
                         arguments.UdpRetransmissions = retransmissions;
                         break;
                         
+                    case "-l":
+                        arguments.Logging = true;
+                        break;
+                        
                     case "-h":
                         CommandLineArguments.PrintHelp();
                         Environment.Exit(0);
