@@ -5,11 +5,11 @@ namespace IPK25_CHAT
     public class CommandLineArguments
     {
         public TransportProtocol TransportProtocol { get; set; }
-        public string ServerAddress { get; set; }
+        public string ServerAddress { get; set; } = null!;
         public ushort ServerPort { get; set; } = 4567;
         public ushort UdpTimeout { get; set; } = 250;
         public byte UdpRetransmissions { get; set; } = 3;
-        public bool Logging { get; set; } = false;
+        public bool Logging { get; set; }
 
         public void Validate()
         {

@@ -14,10 +14,10 @@ namespace IPK25_CHAT
     public class MessageReceivedEventArgs : EventArgs
     {
         public MessageType Type { get; }
-        public string Content { get; }
-        public string DisplayName { get; }
+        public string? Content { get; }
+        public string? DisplayName { get; }
 
-        public MessageReceivedEventArgs(MessageType type, string content, string displayName = null)
+        public MessageReceivedEventArgs(MessageType type, string? content, string? displayName = null)
         {
             Type = type;
             Content = content;
@@ -27,10 +27,10 @@ namespace IPK25_CHAT
 
     public class ErrorEventArgs : EventArgs
     {
-        public string Message { get; }
-        public Exception Exception { get; }
+        public string? Message { get; }
+        public Exception? Exception { get; }
 
-        public ErrorEventArgs(string message, Exception exception = null)
+        public ErrorEventArgs(string? message, Exception? exception = null)
         {
             Message = message;
             Exception = exception;

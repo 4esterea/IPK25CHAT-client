@@ -9,12 +9,12 @@ namespace IPK25_CHAT
 {
     public class TcpProtocol : ChatProtocolBase
     {
-        private TcpClient _client;
-        private NetworkStream _stream;
-        private StreamReader _reader;
-        private StreamWriter _writer;
+        private TcpClient? _client;
+        private NetworkStream? _stream;
+        private StreamReader? _reader;
+        private StreamWriter? _writer;
         private bool _isConnected = false;
-        private Task _receiveTask;
+        private Task? _receiveTask;
         private bool _isDisposing = false;
         
         private bool _Logging = true;
@@ -74,7 +74,11 @@ namespace IPK25_CHAT
                 // Create new client for each connection attempt
                 if (_client != null)
                 {
-                    try { _client.Dispose(); } catch { }
+                    try { _client.Dispose(); }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
                 
                 _client = new TcpClient();
@@ -99,7 +103,7 @@ namespace IPK25_CHAT
                 if (connectTask.IsFaulted)
                 {
                     LogDebug($"Connection failed with error: {connectTask.Exception?.InnerException?.Message}");
-                    throw connectTask.Exception;
+                    throw connectTask.Exception!;
                 }
                 
                 LogDebug($"Connected to {server}:{port} successfully");
@@ -147,7 +151,7 @@ namespace IPK25_CHAT
                 
                 while (_isConnected && !_isDisposing)
                 {
-                    string message = await _reader.ReadLineAsync();
+                    string? message = _reader != null ? await _reader.ReadLineAsync() : null;
                     if (message == null)
                     {
                         // Connection closed by server
@@ -196,7 +200,7 @@ namespace IPK25_CHAT
                 LogDebug($"Processing message: '{message}'");
                 
                 string content = message;
-                string displayName = null;
+                string? displayName = null;
                 MessageType messageType = MessageType.Message;
 
                 if (message.StartsWith("REPLY"))
@@ -249,7 +253,7 @@ namespace IPK25_CHAT
                 }
                 
                 LogDebug($"Forwarding message: Type={messageType}, Content='{content}', DisplayName='{displayName}'");
-                OnMessageReceived(messageType, content, displayName);
+                OnMessageReceived(messageType, content, displayName!);
             }
             catch (Exception ex)
             {
@@ -258,25 +262,25 @@ namespace IPK25_CHAT
             }
         }
 
-        public override async Task SendAuthAsync(string username, string displayName, string secret)
+        public override async Task SendAuthAsync(string? username, string? displayName, string? secret)
         {
             LogDebug($"Sending AUTH: username='{username}', displayName='{displayName}', secret='{secret}'");
             await SendCommandAsync($"AUTH {username} AS {displayName} USING {secret}");
         }
 
-        public override async Task SendJoinAsync(string channel, string displayName)
+        public override async Task SendJoinAsync(string? channel, string? displayName)
         {
             LogDebug($"Sending JOIN: channel='{channel}', displayName='{displayName}'");
             await SendCommandAsync($"JOIN {channel} AS {displayName}");
         }
 
-        public override async Task SendMessageAsync(string displayName, string message)
+        public override async Task SendMessageAsync(string? displayName, string message)
         {
             LogDebug($"Sending MSG: displayName='{displayName}', message='{message}'");
             await SendCommandAsync($"MSG FROM {displayName} IS {message}");
         }
         
-        public override async Task SendByeAsync(string displayName)
+        public override async Task SendByeAsync(string? displayName)
         {
             LogDebug($"Sending BYE: displayName='{displayName}'");
             await SendCommandAsync($"BYE FROM {displayName}");
@@ -305,7 +309,7 @@ namespace IPK25_CHAT
                 byte[] bytes = Encoding.UTF8.GetBytes(command + "\r\n");
                 LogDebug($"Sending {bytes.Length} bytes: [{BitConverter.ToString(bytes)}]");
                 
-                await _writer.WriteLineAsync(command);
+                await _writer!.WriteLineAsync(command);
                 await _writer.FlushAsync();
                 LogDebug("Command sent successfully, waiting for response...");
                 

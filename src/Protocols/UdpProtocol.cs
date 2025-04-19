@@ -11,12 +11,12 @@ namespace IPK25_CHAT
 {
     public class UdpProtocol : ChatProtocolBase
     {
-        private UdpClient _client;
-        private IPEndPoint _serverEndPoint;
-        private IPEndPoint _dynamicServerEndPoint;
+        private UdpClient? _client;
+        private IPEndPoint? _serverEndPoint;
+        private IPEndPoint? _dynamicServerEndPoint;
         private bool _isRunning;
-        private Task _receiveTask;
-        private CancellationTokenSource _cancellationTokenSource;
+        private Task? _receiveTask;
+        private CancellationTokenSource? _cancellationTokenSource;
         private ushort _messageId = 0;
         private readonly HashSet<ushort> _processedMessageIds = new();
         private readonly Dictionary<ushort, TaskCompletionSource<bool>> _pendingConfirmations = new();
@@ -25,7 +25,7 @@ namespace IPK25_CHAT
         private readonly int _confirmationTimeoutMs;
         private readonly int _maxRetries;
         private bool _authenticated;
-        private IPEndPoint _localEndPoint;
+        private IPEndPoint? _localEndPoint;
         
         private bool _Logging = true;
         
@@ -46,7 +46,7 @@ namespace IPK25_CHAT
         }
         
         private ProtocolState _currentState = ProtocolState.NotConnected;
-        private CancellationTokenSource _authTimeoutCts;
+        private CancellationTokenSource? _authTimeoutCts;
         
         public UdpProtocol(string server, int port, bool logging, int confirmationTimeoutMs = 250, int maxRetries = 3)
         {
@@ -66,8 +66,11 @@ namespace IPK25_CHAT
                     LogDebug("UDP socket initialized successfully!");
                     
                     // Bind to a local endpoint to receive messages
-                    _localEndPoint = (IPEndPoint)_client.Client.LocalEndPoint;
-                    LogDebug($"Local UDP endpoint: {_localEndPoint.Address}:{_localEndPoint.Port}");
+                    if (_client?.Client?.LocalEndPoint is IPEndPoint localEndPoint)
+                    {
+                        _localEndPoint = localEndPoint;
+                    }
+                    LogDebug($"Local UDP endpoint: {_localEndPoint!.Address}:{_localEndPoint.Port}");
                 }
                 catch (Exception ex)
                 {
@@ -110,7 +113,7 @@ namespace IPK25_CHAT
             try
             {
                 // Try to convert directly to IP address
-                if (IPAddress.TryParse(hostName, out IPAddress ipAddress))
+                if (IPAddress.TryParse(hostName, out IPAddress? ipAddress))
                 {
                     return hostName;
                 }
@@ -182,10 +185,10 @@ namespace IPK25_CHAT
             try
             {
                 LogDebug("Starting UDP message receiver task...");
-                while (_isRunning && !_cancellationTokenSource.Token.IsCancellationRequested)
+                while (_isRunning && !_cancellationTokenSource!.Token.IsCancellationRequested)
                 {
                     LogDebug("Waiting for UDP messages...");
-                    UdpReceiveResult result = await _client.ReceiveAsync();
+                    UdpReceiveResult result = await _client!.ReceiveAsync();
                     
                     LogDebug($"Received {result.Buffer.Length} bytes from {result.RemoteEndPoint}");
                     
@@ -227,7 +230,7 @@ namespace IPK25_CHAT
             }
         }
         
-        private void LogReceivedBytes(byte[] data)
+        private void LogReceivedBytes(byte[]? data)
         {
             if (data == null || data.Length == 0)
             {
@@ -268,7 +271,7 @@ namespace IPK25_CHAT
                 }
             }
 
-        private async Task ProcessReceivedDataAsync(byte[] data)
+        private async Task ProcessReceivedDataAsync(byte[]? data)
         {
             if (data == null || data.Length < 1)
             {
@@ -472,7 +475,7 @@ namespace IPK25_CHAT
                 LogDebug($"Processing message: '{message}'");
                 
                 string content = message;
-                string displayName = null;
+                string? displayName = null;
                 MessageType messageType = MessageType.Message;
 
                 if (message.StartsWith("REPLY"))
@@ -502,7 +505,7 @@ namespace IPK25_CHAT
                     string msgBody = message.Substring(9).Trim();
                     
                     // Find " IS " separator
-                    int isIndex = msgBody.IndexOf(" IS ");
+                    int isIndex = msgBody.IndexOf(" IS ", StringComparison.Ordinal);
                     if (isIndex > 0)
                     {
                         // Extract displayName and content
@@ -525,7 +528,7 @@ namespace IPK25_CHAT
                 }
 
                 LogDebug($"Forwarding message: Type={messageType}, Content='{content}', DisplayName='{displayName}'");
-                OnMessageReceived(messageType, content, displayName);
+                OnMessageReceived(messageType, content, displayName!);
             }
             catch (Exception ex)
             {
@@ -534,7 +537,7 @@ namespace IPK25_CHAT
             }
         }
 
-        public override async Task SendAuthAsync(string username, string displayName, string secret)
+        public override async Task SendAuthAsync(string? username, string? displayName, string? secret)
         {
             
             // Create AUTH message
@@ -545,8 +548,8 @@ namespace IPK25_CHAT
                 
                 try
                 {
-                    byte[] message = CreateBinaryMessage(0x02, username, displayName, secret);
-                    ushort msgId = BitConverter.ToUInt16(message, 1);
+                    byte[]? message = CreateBinaryMessage(0x02, username!, displayName!, secret!);
+                    ushort msgId = BitConverter.ToUInt16(message!, 1);
                     
                     // Set current state to waiting for AUTH reply
                     _currentState = ProtocolState.WaitingForAuthReply;
@@ -599,17 +602,17 @@ namespace IPK25_CHAT
             }
         }
 
-        public override async Task SendJoinAsync(string channel, string displayName)
+        public override async Task SendJoinAsync(string? channel, string? displayName)
         {
             try
             {
                 // Create JOIN message
-                byte[] data = CreateBinaryMessage(0x03, channel, displayName);
-                ushort msgId = BitConverter.ToUInt16(data, 1);
+                byte[]? data = CreateBinaryMessage(0x03, channel!, displayName!);
+                ushort msgId = BitConverter.ToUInt16(data!, 1);
                 
                 _currentState = ProtocolState.WaitingForJoinReply;
                 
-                LogDebug($"Sending JOIN message: Channel={channel}, DisplayName={displayName}, MsgID={msgId}, Data length={data.Length} bytes");
+                LogDebug($"Sending JOIN message: Channel={channel}, DisplayName={displayName}, MsgID={msgId}, Data length={data!.Length} bytes");
                 LogDebug($"JOIN data: First 3 bytes: [{data[0]:X2} {data[1]:X2} {data[2]:X2}]");
                 LogDebug($"JOIN packet full structure: Type(0x03), MsgID({msgId}), Channel({channel}\\0), DisplayName({displayName}\\0)");
                 
@@ -654,7 +657,7 @@ namespace IPK25_CHAT
             }
         }
 
-        public override async Task SendMessageAsync(string displayName, string message)
+        public override async Task SendMessageAsync(string? displayName, string message)
         {
             if (!_authenticated)
             {
@@ -666,10 +669,10 @@ namespace IPK25_CHAT
             // Create MSG message
             using (var ms = new System.IO.MemoryStream())
             {
-                byte[] data = CreateBinaryMessage(0x04, displayName, message);
-                ushort msgId = BitConverter.ToUInt16(data, 1);
+                byte[]? data = CreateBinaryMessage(0x04, displayName!, message);
+                ushort msgId = BitConverter.ToUInt16(data!, 1);
                 
-                LogDebug($"Sending MSG: DisplayName={displayName}, Content='{message}', Length={data.Length} bytes, MsgID={msgId}");
+                LogDebug($"Sending MSG: DisplayName={displayName}, Content='{message}', Length={data!.Length} bytes, MsgID={msgId}");
                 
                 try
                 {
@@ -694,10 +697,10 @@ namespace IPK25_CHAT
             }
         }
         
-        public override async Task SendByeAsync(string displayName)
+        public override async Task SendByeAsync(string? displayName)
         {
-            byte[] data = CreateBinaryMessage(0xFF, displayName);
-            ushort msgId = BitConverter.ToUInt16(data, 1);
+            byte[]? data = CreateBinaryMessage(0xFF, displayName!);
+            ushort msgId = BitConverter.ToUInt16(data!, 1);
                 
             try
             {
@@ -719,7 +722,7 @@ namespace IPK25_CHAT
             }
         }
         
-        private byte[] CreateConfirmMessage(ushort confirmMessageId)
+        private byte[]? CreateConfirmMessage(ushort confirmMessageId)
         {
             using var ms = new MemoryStream();
             ms.WriteByte(0x00); // CONFIRM type
@@ -732,7 +735,7 @@ namespace IPK25_CHAT
         {
             try
             {
-                byte[] data = CreateConfirmMessage(messageId);
+                byte[]? data = CreateConfirmMessage(messageId);
                 await SendRawAsync(data);
             }
             catch (Exception ex)
@@ -784,11 +787,11 @@ namespace IPK25_CHAT
             }
         }
 
-        private async Task<bool> SendWithConfirmationAsync(byte[] data, ushort messageId)
+        private async Task<bool> SendWithConfirmationAsync(byte[]? data, ushort messageId)
         {
             var tcs = new TaskCompletionSource<bool>();
             _pendingConfirmations[messageId] = tcs;
-            _pendingMessages[messageId] = (data, 0);
+            _pendingMessages[messageId] = (data!, 0);
             
             // First attempt
             await SendRawAsync(data);
@@ -830,7 +833,7 @@ namespace IPK25_CHAT
             return false;
         }
 
-        private async Task SendRawAsync(byte[] data)
+        private async Task SendRawAsync(byte[]? data)
         {
             if (_client == null)
             {
@@ -841,7 +844,7 @@ namespace IPK25_CHAT
             {
                 // Use dynamic server endpoint if available, otherwise use the initial endpoint
                 var endpoint = _dynamicServerEndPoint ?? _serverEndPoint;
-                LogDebug($"Sending {data.Length} bytes to {endpoint}");
+                LogDebug($"Sending {data!.Length} bytes to {endpoint}");
                 if (_Logging)
                 {
                     LogReceivedBytes(data); // Reuse the same method for logging sent data
@@ -856,7 +859,7 @@ namespace IPK25_CHAT
             }
         }
 
-        private byte[] CreateBinaryMessage(byte messageType, params string[] strings)
+        private byte[]? CreateBinaryMessage(byte messageType, params string[] strings)
         {
             // Create a memory stream to build the message
             using var ms = new MemoryStream();

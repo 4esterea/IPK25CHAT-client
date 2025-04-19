@@ -82,7 +82,7 @@ namespace IPK25_CHAT
             }
         }
 
-        private void HandleCancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        private void HandleCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
         {
             e.Cancel = true;
             
@@ -119,7 +119,7 @@ namespace IPK25_CHAT
             
             try
             {
-                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource.Cancel();
                 
                 using var timeoutCts = new CancellationTokenSource(3000);
                 
@@ -287,15 +287,15 @@ namespace IPK25_CHAT
             await _protocol.SendMessageAsync(_displayName, message);
         }
 
-        private void HandleMessageReceived(object sender, MessageReceivedEventArgs e)
+        private void HandleMessageReceived(object? sender, MessageReceivedEventArgs e)
         {
             try
             {
                 switch (e.Type)
                 {
                     case MessageType.Reply:
-                        string content = e.Content;
-                        if (content.StartsWith("REPLY "))
+                        string? content = e.Content;
+                        if (content!.StartsWith("REPLY "))
                         {
                             content = content.Substring(6); 
                         }
@@ -383,9 +383,9 @@ namespace IPK25_CHAT
         }
         
 
-        private void HandleError(object sender, ErrorEventArgs e)
+        private void HandleError(object? sender, ErrorEventArgs e)
         {
-            LogDebug($"Error: {e.Message}");
+            Console.WriteLine($"ERROR: {e.Message}");
             if (e.Exception != null)
             {
                 LogDebug($"Exception: {e.Exception}");
