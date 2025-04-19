@@ -375,12 +375,7 @@ namespace IPK25_CHAT
                         LogDebug($"Unknown message type: {e.Type} - {e.Content}");
                         break;
                 }
-                
-                // Отладочный вывод текущего состояния только если включено подробное логирование
-                if (_Logging)
-                {
                     LogDebug($"Current state is {_currentState}, isAuthenticated={_isAuthenticated}");
-                }
             }
             catch (Exception ex)
             {

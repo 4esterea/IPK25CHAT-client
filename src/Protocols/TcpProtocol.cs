@@ -303,7 +303,6 @@ namespace IPK25_CHAT
                 }
 
                 LogDebug($"Sending raw command: '{command}'");
-                DebugLogRawData(command, true);
                 
                 // Добавим явный вывод о том, что и как отправляется
                 byte[] bytes = Encoding.UTF8.GetBytes(command + "\r\n");
@@ -414,14 +413,6 @@ namespace IPK25_CHAT
             {
                 LogDebug($"Failed to disconnect: {ex.Message}");
                 OnError("Failed to disconnect", ex);
-            }
-        }
-        
-        private void DebugLogRawData(string data, bool isSending = false)
-        {
-            if (_Logging)
-            {
-                Console.Error.WriteLine($"[DEBUG] {(isSending ? "SENDING" : "RECEIVED")}: {data}");
             }
         }
     }
