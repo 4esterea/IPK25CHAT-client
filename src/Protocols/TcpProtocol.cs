@@ -17,10 +17,8 @@ namespace IPK25_CHAT
         private Task _receiveTask;
         private bool _isDisposing = false;
         
-        // Включение/выключение подробного логирования
         private bool _Logging = true;
         
-        // Публичное свойство для управления логированием
         public bool Logging 
         { 
             get { return _Logging; } 
@@ -62,7 +60,7 @@ namespace IPK25_CHAT
             }
         }
 
-        // Вспомогательный метод для логирования
+        // Helper method for logging
         private void LogDebug(string message)
         {
             if (_Logging)
@@ -222,24 +220,24 @@ namespace IPK25_CHAT
                     LogDebug($"Parsed as BYE: '{content}'");
                 }
                 else if (message.StartsWith("MSG FROM"))
-                {
+                { 
                     messageType = MessageType.Message;
-                    
-                    // Удаляем префикс "MSG FROM "
+                
+                    // Remove the "MSG FROM " prefix
                     string msgBody = message.Substring(9).Trim();
-                    
-                    // Находим разделитель " IS "
+                
+                    // Find the " IS " separator
                     int isIndex = msgBody.IndexOf(" IS ");
                     if (isIndex > 0)
                     {
-                        // Извлекаем имя и содержание
+                        // Extract display name and content
                         displayName = msgBody.Substring(0, isIndex).Trim();
-                        content = msgBody.Substring(isIndex + 4).Trim();
+                        content = msgBody.Substring(isIndex + 4).Trim(); 
                         LogDebug($"Parsed as MSG: displayName='{displayName}', content='{content}'");
                     }
                     else
                     {
-                        // Если нет разделителя, считаем всё содержимым
+                        // If there's no separator, consider everything as content
                         displayName = "Unknown";
                         content = msgBody;
                         LogDebug($"Parsed as MSG without IS separator: content='{content}'");
@@ -247,10 +245,10 @@ namespace IPK25_CHAT
                 }
                 else
                 {
-                    // Для других типов сообщений
+                    // For other message types
                     LogDebug($"Unknown message format: '{message}'");
                 }
-
+                
                 LogDebug($"Forwarding message: Type={messageType}, Content='{content}', DisplayName='{displayName}'");
                 OnMessageReceived(messageType, content, displayName);
             }
@@ -295,16 +293,16 @@ namespace IPK25_CHAT
 
             try
             {
-                // Проверка состояния соединения перед отправкой
+                // Check connection state before sending
                 if (_client?.Client?.Connected != true)
                 {
                     LogDebug($"Warning: Socket reports disconnected state, but _isConnected={_isConnected}");
                     LogDebug("Attempting to send command anyway...");
                 }
-
+                
                 LogDebug($"Sending raw command: '{command}'");
                 
-                // Добавим явный вывод о том, что и как отправляется
+                // Add explicit output about what is being sent and how
                 byte[] bytes = Encoding.UTF8.GetBytes(command + "\r\n");
                 LogDebug($"Sending {bytes.Length} bytes: [{BitConverter.ToString(bytes)}]");
                 
@@ -312,7 +310,7 @@ namespace IPK25_CHAT
                 await _writer.FlushAsync();
                 LogDebug("Command sent successfully, waiting for response...");
                 
-                // Ожидание короткое время для получения ответа
+                // Wait a short time to receive a response
                 await Task.Delay(100);
                 if (_client?.Available > 0)
                 {
@@ -377,7 +375,7 @@ namespace IPK25_CHAT
                     _writer?.Dispose();
                     
                     LogDebug("Shutting down socket connection");
-                    // Proper connection shutdown without RST flag [RFC9293]
+                    // Proper connection shutdown without RST flag
                     if (_client?.Connected == true)
                     {
                         // Proper termination - close socket with timeout

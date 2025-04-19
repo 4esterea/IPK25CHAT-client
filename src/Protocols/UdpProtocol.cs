@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -26,17 +27,14 @@ namespace IPK25_CHAT
         private bool _authenticated;
         private IPEndPoint _localEndPoint;
         
-        // Включение/отключение подробных логов
         private bool _Logging = true;
         
-        // Публичное свойство для управления логированием
         public bool Logging 
         { 
             get { return _Logging; } 
             set { _Logging = value; }
         }
         
-        // Определение перечисления состояния протокола
         private enum ProtocolState
         {
             NotConnected,
@@ -47,7 +45,6 @@ namespace IPK25_CHAT
             JoinedChannel
         }
         
-        // Добавляем поле для отслеживания текущего состояния
         private ProtocolState _currentState = ProtocolState.NotConnected;
         private CancellationTokenSource _authTimeoutCts;
         
@@ -68,7 +65,7 @@ namespace IPK25_CHAT
                     connected = true;
                     LogDebug("UDP socket initialized successfully!");
                     
-                    // Получаем и выводим локальный эндпоинт
+                    // Bind to a local endpoint to receive messages
                     _localEndPoint = (IPEndPoint)_client.Client.LocalEndPoint;
                     LogDebug($"Local UDP endpoint: {_localEndPoint.Address}:{_localEndPoint.Port}");
                     LogDebug($"To send messages to this client, use: nc -4 -u -v {_localEndPoint.Address} {_localEndPoint.Port} <message_file>");
@@ -272,7 +269,6 @@ namespace IPK25_CHAT
                         break;
                 }
             }
-        // }
 
         private async Task ProcessReceivedDataAsync(byte[] data)
         {
@@ -295,14 +291,14 @@ namespace IPK25_CHAT
 
                 LogDebug($"Processing binary message: Type=0x{messageType:X2}, ID={messageId}, CurrentState={_currentState}");
 
-                // Отправляем подтверждение для всех сообщений кроме CONFIRM
+                // Send CONFIRM for all messages except PING and BYE
                 if (messageType != 0x00)
                 {
                     LogDebug($"Sending CONFIRM for message ID {messageId}");
                     await SendConfirmAsync(messageId);
                 }
 
-                // Проверка на обработанные сообщения
+                // Check if message ID is already processed
                 if (messageType != 0x00 && messageType != 0x01)
                 {
                     if (_processedMessageIds.Contains(messageId))
@@ -329,7 +325,7 @@ namespace IPK25_CHAT
 
                 switch (messageType)
                 {
-                    case 0x00: // CONFIRM - особый случай, не конвертируем
+                    case 0x00: // CONFIRM
                         if (data.Length >= 3)
                         {
                             ushort confirmedMessageId = BitConverter.ToUInt16(data, 1);
@@ -345,11 +341,11 @@ namespace IPK25_CHAT
                             ushort refMessageId = BitConverter.ToUInt16(data, 4);
                             string content = ExtractNullTerminatedString(data, 6);
                             
-                            // Конвертируем в текстовый формат
+                            // Convert to text format
                             string tcpFormattedMsg = $"REPLY {(result == 1 ? "OK" : "NOK")} IS {content}";
                             ProcessMessage(tcpFormattedMsg);
                             
-                            // Дополнительная обработка состояний
+                            // Additional processing
                             if (_currentState == ProtocolState.WaitingForAuthReply)
                             {
                                 _authenticated = (result == 1);
@@ -377,14 +373,14 @@ namespace IPK25_CHAT
                             if (offset < data.Length)
                             {
                                 string content = ExtractNullTerminatedString(data, offset);
-                                // Конвертируем в текстовый формат
+                                // Convert to text format
                                 string tcpFormattedMsg = $"MSG FROM {displayName} IS {content}";
                                 ProcessMessage(tcpFormattedMsg);
                             }
                         }
                         break;
 
-                    case 0xFD: // PING - только подтверждение без обработки
+                    case 0xFD: // PING 
                         LogDebug($"Received PING message (ID: {messageId})");
                         break;
 
@@ -412,7 +408,7 @@ namespace IPK25_CHAT
                             int offset = 3;
                             string displayName = ExtractNullTerminatedString(data, offset);
                             
-                            // Конвертируем в текстовый формат
+                            // Convert to text format
                             string tcpFormattedMsg = $"BYE FROM {displayName}";
                             ProcessMessage(tcpFormattedMsg);
                             await DisconnectAsync();
@@ -503,21 +499,21 @@ namespace IPK25_CHAT
                 {
                     messageType = MessageType.Message;
                     
-                    // Удаляем префикс "MSG FROM "
+                    // Delete "MSG FROM" 
                     string msgBody = message.Substring(9).Trim();
                     
-                    // Находим разделитель " IS "
+                    // Find " IS " separator
                     int isIndex = msgBody.IndexOf(" IS ");
                     if (isIndex > 0)
                     {
-                        // Извлекаем имя и содержание
+                        // Extract displayName and content
                         displayName = msgBody.Substring(0, isIndex).Trim();
                         content = msgBody.Substring(isIndex + 4).Trim();
                         LogDebug($"Parsed as MSG: displayName='{displayName}', content='{content}'");
                     }
                     else
                     {
-                        // Если нет разделителя, считаем всё содержимым
+                        // If " IS " separator not found, treat as unknown format
                         displayName = "Unknown";
                         content = msgBody;
                         LogDebug($"Parsed as MSG without IS separator: content='{content}'");
@@ -525,7 +521,7 @@ namespace IPK25_CHAT
                 }
                 else
                 {
-                    // Для других типов сообщений
+                    // Unknown format
                     LogDebug($"Unknown message format: '{message}'");
                 }
 
@@ -553,7 +549,7 @@ namespace IPK25_CHAT
                     byte[] message = CreateBinaryMessage(0x02, username, displayName, secret);
                     ushort msgId = BitConverter.ToUInt16(message, 1);
                     
-                    // Установка текущего состояния
+                    // Set current state to waiting for AUTH reply
                     _currentState = ProtocolState.WaitingForAuthReply;
                     
                     LogDebug($"Sending AUTH message: Username={username}, DisplayName={displayName}, MsgID={msgId}");
@@ -570,14 +566,14 @@ namespace IPK25_CHAT
                     
                     LogDebug("AUTH message was sent to server");
                     
-                    // Продолжаем оригинальную логику ожидания ответа
-                    _authTimeoutCts = new CancellationTokenSource(15000); // Увеличенный таймаут до 15 секунд
+                    // Create a cancellation token for the authentication timeout
+                    _authTimeoutCts = new CancellationTokenSource(15000); 
                     
                     try
                     {
                         await Task.Delay(15000, _authTimeoutCts.Token);
                         
-                        // If we get here без аутентификации, это таймаут
+                        // If we get here without cancellation, it means we didn't receive a REPLY
                         if (!_authenticated)
                         {
                             Console.WriteLine("Authentication timeout - server did not send REPLY");
@@ -592,8 +588,7 @@ namespace IPK25_CHAT
                     }
                     catch (TaskCanceledException)
                     {
-                        // Task была отменена, что означает, что аутентификация была успешной
-                        LogDebug("Authentication task was cancelled (probably successful)");
+                        // Task was cancelled, meaning we received a REPLY
                     }
                 }
                 catch (Exception ex)
@@ -610,12 +605,9 @@ namespace IPK25_CHAT
             try
             {
                 // Create JOIN message
-                
-                // Используем CreateBinaryMessage вместо ручного создания
                 byte[] data = CreateBinaryMessage(0x03, channel, displayName);
                 ushort msgId = BitConverter.ToUInt16(data, 1);
                 
-                // Установка текущего состояния
                 _currentState = ProtocolState.WaitingForJoinReply;
                 
                 LogDebug($"Sending JOIN message: Channel={channel}, DisplayName={displayName}, MsgID={msgId}, Data length={data.Length} bytes");
@@ -635,24 +627,23 @@ namespace IPK25_CHAT
                 LogDebug("JOIN message sent to server");
                 LogDebug("Waiting for join confirmation from server...");
                 
-                // Ожидаем ответ сервера, но без выброса исключения
                 using (var timeoutCts = new CancellationTokenSource(5000))
                 {
                     try
                     {
                         await Task.Delay(5000, timeoutCts.Token);
                         
-                        // Если таймаут и нет подтверждения о присоединении
+                        // If we get here without cancellation, it means we didn't receive a REPLY
                         if (_currentState == ProtocolState.WaitingForJoinReply)
                         {
-                            Console.WriteLine("Join timeout - server did not send REPLY (but we'll continue anyway)");
-                            _currentState = ProtocolState.Authenticated; // Возвращаемся в предыдущее состояние
+                            Console.WriteLine("Join timeout - server did not send REPLY");
+                            _currentState = ProtocolState.Authenticated; 
                         }
                     }
                     catch (TaskCanceledException)
                     {
-                        // Операция была отменена, значит получили ответ от сервера
-                        LogDebug("Join task was cancelled (probably successful)");
+                        // Task was cancelled, meaning we received a REPLY
+                        LogDebug("Join task was cancelled");
                     }
                 }
                 
@@ -706,7 +697,6 @@ namespace IPK25_CHAT
         
         public override async Task SendByeAsync(string displayName)
         {
-            // Используем CreateBinaryMessage
             byte[] data = CreateBinaryMessage(0xFF, displayName);
             ushort msgId = BitConverter.ToUInt16(data, 1);
                 
@@ -727,13 +717,12 @@ namespace IPK25_CHAT
             catch (Exception ex)
             {
                     Console.WriteLine($"Error sending BYE message: {ex.Message}");
-                    // Don't throw an exception here, just log it
             }
         }
         
         private byte[] CreateConfirmMessage(ushort confirmMessageId)
         {
-            using var ms = new System.IO.MemoryStream();
+            using var ms = new MemoryStream();
             ms.WriteByte(0x00); // CONFIRM type
             byte[] msgIdBytes = BitConverter.GetBytes(confirmMessageId);
             ms.Write(msgIdBytes, 0, 2);
@@ -806,7 +795,7 @@ namespace IPK25_CHAT
             await SendRawAsync(data);
             
             // Wait for confirmation with timeout
-            for (int retry = 0; retry <= _maxRetries; retry++)
+            for (int retry = 0; retry < _maxRetries; retry++)
             {
                 try
                 {
@@ -870,22 +859,26 @@ namespace IPK25_CHAT
 
         private byte[] CreateBinaryMessage(byte messageType, params string[] strings)
         {
-            using var ms = new System.IO.MemoryStream();
+            // Create a memory stream to build the message
+            using var ms = new MemoryStream();
     
-            // Общий заголовок
+            // Write the message type byte
             ms.WriteByte(messageType);
+    
+            // Generate and write a unique message ID (2 bytes)
             ushort msgId = _messageId++;
             byte[] msgIdBytes = BitConverter.GetBytes(msgId);
             ms.Write(msgIdBytes, 0, 2);
     
-            // Добавление строк с null-терминаторами
+            // Write each string followed by a null terminator (0x00)
             foreach (var str in strings)
             {
                 byte[] strBytes = Encoding.ASCII.GetBytes(str);
                 ms.Write(strBytes, 0, strBytes.Length);
-                ms.WriteByte(0);
+                ms.WriteByte(0); 
             }
-    
+
+            // Convert the stream to a byte array and return it
             return ms.ToArray();
         }
     }

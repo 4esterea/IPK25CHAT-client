@@ -24,7 +24,7 @@ namespace IPK25_CHAT
             _cancellationTokenSource = new CancellationTokenSource();
             _Logging = verboseLogging;
             
-            // Применяем настройку логирования для протоколов
+            // Apply logging settings for protocols
             if (_protocol is TcpProtocol tcpProtocol)
             {
                 tcpProtocol.Logging = _Logging;
@@ -282,7 +282,6 @@ namespace IPK25_CHAT
                 LogDebug("You are in the default channel");
             }
 
-            // Выводим сообщение об отправке только в режиме подробного логирования
             LogDebug($"Sending message to channel {_currentChannel}");
             
             await _protocol.SendMessageAsync(_displayName, message);
@@ -307,7 +306,7 @@ namespace IPK25_CHAT
                             string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
                             Console.WriteLine($"Action Success: {replyMessage}");
                             
-                            // Сохраняем предыдущее состояние для логирования
+                            // Save previous state for logging
                             ClientState previousState = _currentState;
 
                             
@@ -325,14 +324,12 @@ namespace IPK25_CHAT
                             }
                             _currentState = ClientState.Open;
                             
-                            // Логирование изменений состояния только при подробном логировании
+                            // Log state changes only when verbose logging is enabled
                             LogDebug($"State changed: {previousState} -> {_currentState}");
                         }
                         else {
                             string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
                             Console.WriteLine($"Action Failure: {replyMessage}");
-                            
-                            // Сохраняем предыдущее состояние для логирования
                             
                             if (_currentState == ClientState.Join) _currentState = ClientState.Open;
                             _requestedChannel = null;
@@ -347,7 +344,7 @@ namespace IPK25_CHAT
                                 LogDebug($"Processing message: '{e.Content}', DisplayName: '{e.DisplayName}'");
                             }
                             
-                            // Теперь displayName и content уже правильно разделены в TcpProtocol
+                            // displayName and content are correctly separated in TcpProtocol
                             if (!string.IsNullOrEmpty(e.DisplayName) && !string.IsNullOrEmpty(e.Content))
                             {
                                 Console.WriteLine($"{e.DisplayName}: {e.Content}");

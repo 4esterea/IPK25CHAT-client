@@ -6,7 +6,7 @@ namespace IPK25_CHAT
 {
     class Program
     {
-        private static bool _Logging = false;
+        private static bool _Logging;
         static async Task Main(string[] args)
         {
             try
@@ -17,14 +17,22 @@ namespace IPK25_CHAT
                 if (arguments.TransportProtocol == TransportProtocol.Tcp)
                 {
                     LogDebug($"Connecting to {arguments.ServerAddress}:{arguments.ServerPort} using TCP...");
-                    protocol = new TcpProtocol(arguments.ServerAddress, arguments.ServerPort, _Logging);
+                    protocol = new TcpProtocol(
+                        arguments.ServerAddress,
+                        arguments.ServerPort,
+                        _Logging);
                     ((TcpProtocol)protocol).Logging = arguments.Logging;
                     LogDebug("Connected Successfully!");
                 }
                 else
                 {
                     LogDebug($"Connecting to {arguments.ServerAddress}:{arguments.ServerPort} using UDP...");
-                    protocol = new UdpProtocol(arguments.ServerAddress, arguments.ServerPort, _Logging);
+                    protocol = new UdpProtocol(
+                        arguments.ServerAddress, 
+                        arguments.ServerPort, 
+                        _Logging, 
+                        arguments.UdpTimeout, 
+                        arguments.UdpRetransmissions);
                     ((UdpProtocol)protocol).Logging = arguments.Logging;
                     LogDebug("Connected Successfully!");
                 }
