@@ -47,14 +47,12 @@ namespace IPK25_CHAT
                     else 
                     {
                         // On failure, output a dot and wait before next attempt
-                        Console.Write(".");
                         Thread.Sleep(1000); // 1 second between attempts
                     }
                 }
                 catch (Exception)
                 {
                     // On connection error, wait and retry
-                    Console.Write(".");
                     Thread.Sleep(1000);
                 }
             }
@@ -210,7 +208,8 @@ namespace IPK25_CHAT
                 else if (message.StartsWith("ERR"))
                 {
                     messageType = MessageType.Error;
-                    content = message.Substring(3).Trim();
+                    displayName = message.Split(' ')[2];
+                    content = message.Substring(message.IndexOf("IS", StringComparison.Ordinal) + 2).Trim();
                     LogDebug($"Parsed as ERR: '{content}'");
                 }
                 else if (message.StartsWith("BYE"))

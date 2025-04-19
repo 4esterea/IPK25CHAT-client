@@ -68,13 +68,11 @@ namespace IPK25_CHAT
                     // Bind to a local endpoint to receive messages
                     _localEndPoint = (IPEndPoint)_client.Client.LocalEndPoint;
                     LogDebug($"Local UDP endpoint: {_localEndPoint.Address}:{_localEndPoint.Port}");
-                    LogDebug($"To send messages to this client, use: nc -4 -u -v {_localEndPoint.Address} {_localEndPoint.Port} <message_file>");
                 }
                 catch (Exception ex)
                 {
                     // On connection error, wait and retry
                     Console.WriteLine($"UDP initialization error: {ex.Message}");
-                    Console.Write(".");
                     Thread.Sleep(1000);
                 }
             }
@@ -486,7 +484,8 @@ namespace IPK25_CHAT
                 else if (message.StartsWith("ERR"))
                 {
                     messageType = MessageType.Error;
-                    content = message.Substring(3).Trim();
+                    displayName = message.Split(' ')[2];
+                    content = message.Substring(message.IndexOf("IS", StringComparison.Ordinal) + 2).Trim();
                     LogDebug($"Parsed as ERR: '{content}'");
                 }
                 else if (message.StartsWith("BYE"))

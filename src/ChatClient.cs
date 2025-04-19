@@ -357,7 +357,9 @@ namespace IPK25_CHAT
                         break;
                     
                     case MessageType.Error:
-                        LogDebug("Received ERR message from server");
+                        LogDebug("Received ERR message");
+                        
+                        Console.WriteLine($"ERROR FROM {e.DisplayName}: {e.Content}");
                         _currentState = ClientState.End;
                         Environment.Exit(0);
                         break;   

@@ -19,7 +19,7 @@ namespace IPK25_CHAT
 
         public static void PrintHelp()
         {
-            Console.WriteLine("Usage: ./ipk25-chat -t <tcp|udp> -s <host> [-p <port>] [-d <timeout>] [-r <retransmissions>] [-v]");
+            Console.WriteLine("Usage: ./ipk25chat-client -t <tcp|udp> -s <host> [-p <port>] [-d <timeout>] [-r <retransmissions>] [-l] [-h]");
             Console.WriteLine("Options:");
             Console.WriteLine("  -t <tcp|udp>     Transport protocol (required)");
             Console.WriteLine("  -s <host>        Server address (required)");
