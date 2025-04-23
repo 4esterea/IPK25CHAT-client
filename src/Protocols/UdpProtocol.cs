@@ -386,7 +386,7 @@ namespace IPK25_CHAT
                             if (offset < data.Length)
                             {
                                 string content = ExtractNullTerminatedString(data, offset);
-                                // Конвертируем в текстовый формат
+                                // Convert to text format
                                 string tcpFormattedMsg = $"ERR FROM {displayName} IS {content}";
                                 ProcessMessage(tcpFormattedMsg);
                                 await DisconnectAsync();
