@@ -45,6 +45,7 @@ namespace IPK25_CHAT
         Task SendAuthAsync(string? username, string? displayName, string? secret);
         Task SendJoinAsync(string? channel, string? displayName);
         Task SendMessageAsync(string? displayName, string message);
+        Task SendErrorAsync(string? displayName, string message);
         Task SendByeAsync(string? displayName);
         Task DisconnectAsync();
     }

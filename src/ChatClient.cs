@@ -13,8 +13,8 @@ namespace IPK25_CHAT
         private ClientState _currentState = ClientState.Init;
         private string? _requestedChannel; 
         private CancellationTokenSource _cancellationTokenSource;
-        private bool _isTerminating = false;
-        private bool _Logging = false;
+        private bool _isTerminating;
+        private bool _Logging;
 
         public ChatClient(IChatProtocol protocol, bool verboseLogging = false)
         {
@@ -110,7 +110,7 @@ namespace IPK25_CHAT
             });
         }
 
-        private async Task GracefulShutdownAsync()
+        private async Task GracefulShutdownAsync(int exitCode = 0)
         {
             if (_isTerminating)
                 return;
@@ -174,7 +174,7 @@ namespace IPK25_CHAT
             finally
             {
                 LogDebug("Shutdown complete");
-                Environment.Exit(0);
+                Environment.Exit(exitCode);
             }
         }
 
@@ -195,6 +195,14 @@ namespace IPK25_CHAT
                             return;
                         }
 
+                        if (!ValidateUsername(parts[1]) ||
+                            !ValidateSecret(parts[2]) ||
+                            !ValidateDisplayName(parts[3]))
+                        {
+                            Console.WriteLine("Invalid username, secret or display name");
+                            return;
+                        }
+                        
                         await HandleAuthAsync(parts[1], parts[2], parts[3]);
                     }
                     else
@@ -211,7 +219,13 @@ namespace IPK25_CHAT
                             Console.WriteLine("Usage: /join <channel>");
                             return;
                         }
-
+                        
+                        if (!ValidateChannelId(parts[1])) 
+                        {
+                            Console.WriteLine("Invalid channel ID");
+                            return;
+                        }
+                        
                         string? requestedChannel = parts[1];
 
                         _requestedChannel = requestedChannel;
@@ -233,6 +247,13 @@ namespace IPK25_CHAT
                         Console.WriteLine("Usage: /rename <displayname>");
                         return;
                     }
+                    
+                    if (!ValidateDisplayName(parts[1]))
+                    {
+                        Console.WriteLine("Invalid display name");
+                        return;
+                    }
+                    
                     _displayName = parts[1];
                     Console.WriteLine($"Display name changed to {_displayName}");
                     break;
@@ -291,19 +312,31 @@ namespace IPK25_CHAT
         {
             try
             {
+                LogDebug($"Received message: {e.Content}, Type: {e.Type}, DisplayName: {e.DisplayName}");
                 switch (e.Type)
                 {
                     case MessageType.Reply:
                         string? content = e.Content;
-                        if (content!.StartsWith("REPLY "))
-                        {
-                            content = content.Substring(6); 
-                        }
                         
-                        string[] replyParts = content.Split(" ");
+                        string[] replyParts = content!.Split(" ");
                         if (replyParts[0] == "OK")
                         {
-                            string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
+                            string replyMessage = "";
+                            
+                            if (content.Contains(" IS "))
+                            {
+                                string[] splitContent = content.Split(new[] { " IS " }, StringSplitOptions.None);
+                                if (splitContent.Length > 1)
+                                {
+                                    replyMessage = splitContent[1];
+                                }
+                            }
+                            
+                            if (!ValidateMessageContent(replyMessage))
+                            {
+                                HandleMalformedMessage($"REPLY {content}");
+                                return;
+                            }
                             Console.WriteLine($"Action Success: {replyMessage}");
                             
                             // Save previous state for logging
@@ -327,37 +360,58 @@ namespace IPK25_CHAT
                             // Log state changes only when verbose logging is enabled
                             LogDebug($"State changed: {previousState} -> {_currentState}");
                         }
-                        else {
+                        else if (replyParts[0] == "NOK"){
                             string replyMessage = content.Split(new[] { " IS " }, StringSplitOptions.None)[1];
+                            
+                            if (!ValidateMessageContent(replyMessage))
+                            {
+                                HandleMalformedMessage($"REPLY {content}");
+                                return;
+                            }
+                            
                             Console.WriteLine($"Action Failure: {replyMessage}");
                             
                             if (_currentState == ClientState.Join) _currentState = ClientState.Open;
                             _requestedChannel = null;
+                        }
+                        else
+                        {
+                            HandleMalformedMessage($"REPLY {content}");
                         }
                         break;
                     
                     case MessageType.Message:
                         if (_currentState == ClientState.Open || _currentState == ClientState.Join)
                         {
-                            if (_Logging)
-                            {
-                                LogDebug($"Processing message: '{e.Content}', DisplayName: '{e.DisplayName}'");
-                            }
+                            LogDebug($"Processing message: '{e.Content}', DisplayName: '{e.DisplayName}'");
                             
-                            // displayName and content are correctly separated in TcpProtocol
                             if (!string.IsNullOrEmpty(e.DisplayName) && !string.IsNullOrEmpty(e.Content))
                             {
+                                if (!ValidateDisplayName(e.DisplayName) ||
+                                    !ValidateMessageContent(e.Content))
+                                {
+                                    HandleMalformedMessage($"MSG FROM {e.DisplayName} IS {e.Content}");
+                                    return;
+                                }
+                                
                                 Console.WriteLine($"{e.DisplayName}: {e.Content}");
                             }
                             else
                             {
-                                Console.WriteLine("Received empty message");
+                                HandleMalformedMessage($"MSG FROM {e.DisplayName} IS {e.Content}");
                             }
                         }
                         break;
                     
                     case MessageType.Error:
                         LogDebug("Received ERR message");
+                        
+                        if (!ValidateUsername(e.DisplayName) ||
+                            !ValidateMessageContent(e.Content))
+                        {
+                            HandleMalformedMessage($"ERROR FROM {e.DisplayName} IS {e.Content}");
+                            return;
+                        }
                         
                         Console.WriteLine($"ERROR FROM {e.DisplayName}: {e.Content}");
                         _currentState = ClientState.End;
@@ -383,12 +437,33 @@ namespace IPK25_CHAT
         }
         
 
-        private void HandleError(object? sender, ErrorEventArgs e)
+        private async void HandleError(object? sender, ErrorEventArgs e)
         {
             Console.WriteLine($"ERROR: {e.Message}");
             if (e.Exception != null)
             {
                 LogDebug($"Exception: {e.Exception}");
+            }
+            
+            try
+            {
+                await _protocol.SendErrorAsync(_displayName, e.Message!);
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"Failed to send error message: {ex.Message}");
+            }
+            
+            _currentState = ClientState.End;
+            
+            try
+            {
+                await GracefulShutdownAsync(1);
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"Error during shutdown: {ex.Message}");
+                Environment.Exit(1);
             }
         }
 
@@ -409,6 +484,60 @@ namespace IPK25_CHAT
                 Console.Error.WriteLine($"CLIENT DEBUG: {message}");
             }
         }
+        
+        private void HandleMalformedMessage(string message)
+        {
+            string errorMessage = $"Malformed message from server : {message}";
+            HandleError(this, new ErrorEventArgs(errorMessage, 
+                new FormatException("Malformed server message")));
+        }
+        
+        #region Validation
+        
+        private bool ValidateUsername(string? username)
+        {
+            if (string.IsNullOrEmpty(username) || username.Length > 20)
+                return false;
+    
+            return System.Text.RegularExpressions.Regex.IsMatch(username, "^[a-zA-Z0-9_-]+$");
+        }
+
+        private bool ValidateChannelId(string? channelId)
+        {
+            if (string.IsNullOrEmpty(channelId) || channelId.Length > 20)
+                return false;
+    
+            return System.Text.RegularExpressions.Regex.IsMatch(channelId, "^[a-zA-Z0-9_.-]+$");
+        }
+
+        private bool ValidateSecret(string? secret)
+        {
+            if (string.IsNullOrEmpty(secret) || secret.Length > 128)
+                return false;
+    
+            return System.Text.RegularExpressions.Regex.IsMatch(secret, "^[a-zA-Z0-9_-]+$");
+        }
+
+        private bool ValidateDisplayName(string? displayName)
+        {
+            if (string.IsNullOrEmpty(displayName) || displayName.Length > 20)
+                return false;
+            
+            return System.Text.RegularExpressions.Regex.IsMatch(displayName, "^[\x21-\x7E]+$");
+        }
+
+        private bool ValidateMessageContent(string? message)
+        {
+            LogDebug($"Validating Message: {message}");
+            if (message is { Length: > 60000 } ||
+                string.IsNullOrEmpty(message))
+                return false;
+            
+            return System.Text.RegularExpressions.Regex.IsMatch(message, "^[\x0A\x20-\x7E]*$");
+        }
+        
+
+        #endregion
     }
     
     public enum ClientState

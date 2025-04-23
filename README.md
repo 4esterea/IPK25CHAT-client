@@ -26,6 +26,8 @@ The chat client operates as a network client that connects to a server using eit
 
 Inheritance is used to provide a common interface and shared functionality for both TCP and UDP protocols. An abstract base class (e.g., ChatProtocolBase) defines the common methods and events. The TCP and UDP classes then inherit and override these methods to implement protocol-specific behaviors.
 
+![Protocol Inheritance Diagram](media/protocol_inheritance.png)
+
 Example of a TCP protocol class inheriting from the base:
 ```csharp
 public class TcpProtocol : ChatProtocolBase
@@ -112,6 +114,16 @@ Options:
 
 ## Testing
 
+For testing purposes, a reference server anton5.fit.vutbr.cz was provided, which was used to verify the client's functionality when interacting with a remote host via both TCP and UDP protocols. The server implements all necessary functions for comprehensive testing of the chat client, including user authentication, channel management, and message exchange.
+
+When showing output on the client side, the following color scheme is used:
+
+<span style="color:#40e0ad">Turquoise</span>: Lines entered by the client (user commands)
+
+<span style="color:#ffc0c0">Pink</span>: Interpreted messages received from the server
+
+White: Messages from the client itself (hints, errors)
+
 ### Test Case 1: Chat Client launch using -h option
 
 **What was tested:**
@@ -126,30 +138,32 @@ To ensure the application displays the help message when the help flag is used.
 ```
 
 **Output:**
-```bash
-Usage: ./ipk25chat-client -t <tcp|udp> -s <host> [-p <port>] [-d <timeout>] [-r <retransmissions>] [-l] [-h]
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+Usage: ./ipk25chat-client -t &lt;tcp|udp&gt; -s &lt;host&gt; [-p &lt;port&gt;] [-d &lt;timeout&gt;] [-r &lt;retransmissions&gt;] [-l] [-h]
 Options:
-  -t <tcp|udp>     Transport protocol (required)
-  -s <host>        Server address (required)
-  -p <port>        Server port (default: 4567)
-  -d <timeout>     UDP confirmation timeout in ms (default: 250)
-  -r <retransmissions> Maximum number of UDP retransmissions (default: 3)
+  -t &lt;tcp|udp&gt;     Transport protocol (required)
+  -s &lt;host&gt;        Server address (required)
+  -p &lt;port&gt;        Server port (default: 4567)
+  -d &lt;timeout&gt;     UDP confirmation timeout in ms (default: 250)
+  -r &lt;retransmissions&gt; Maximum number of UDP retransmissions (default: 3)
   -l              Enable logging (output to stderr)
   -h              Show this help message
-```
+</pre>
 
 **Expected output:**
-```bash
-Usage: ./ipk25chat-client -t <tcp|udp> -s <host> [-p <port>] [-d <timeout>] [-r <retransmissions>] [-l] [-h]
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+Usage: ./ipk25chat-client -t &lt;tcp|udp&gt; -s &lt;host&gt; [-p &lt;port&gt;] [-d &lt;timeout&gt;] [-r &lt;retransmissions&gt;] [-l] [-h]
 Options:
-  -t <tcp|udp>     Transport protocol (required)
-  -s <host>        Server address (required)
-  -p <port>        Server port (default: 4567)
-  -d <timeout>     UDP confirmation timeout in ms (default: 250)
-  -r <retransmissions> Maximum number of UDP retransmissions (default: 3)
+  -t &lt;tcp|udp&gt;     Transport protocol (required)
+  -s &lt;host&gt;        Server address (required)
+  -p &lt;port&gt;        Server port (default: 4567)
+  -d &lt;timeout&gt;     UDP confirmation timeout in ms (default: 250)
+  -r &lt;retransmissions&gt; Maximum number of UDP retransmissions (default: 3)
   -l              Enable logging (output to stderr)
   -h              Show this help message
-```
+</pre>
 
 ### Test Case 2: Normal launch of the Chat Client using TCP
 
@@ -165,18 +179,22 @@ To verify that the client successfully establishes a TCP connection, initializes
 ```
 
 **Output:**
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via TCP.
-```
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via TCP.</span>
+</pre>
+
 
 **Expected output:**
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via TCP.
-```
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via TCP.</span>
+</pre>
+
 
 ### Test Case 3: Normal launch of the Chat Client using UDP
 
@@ -196,19 +214,19 @@ To verify that the client successfully establishes a UDP connection, initializes
 
 **Output:**
 
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via UDP.
-```
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via UDP.</span>
+</pre>
 
 **Expected output:**
 
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via UDP.
-```
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via UDP.</span>
+</pre>
 
 ### Test Case 4: Joining a channel using TCP
 
@@ -228,27 +246,27 @@ To verify that the client can successfully join a channel and receive confirmati
 
 **Output:**
 
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via TCP.
-/join discord.test
-Action Success: Channel discord.test successfully joined.
-Server: DisplayName has switched from `discord.general` to `discord.test`.
-Server: DisplayName has joined `discord.test` via TCP.
-```
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via TCP.</span>
+<span style="color:#40e0ad">/join discord.test</span>
+<span style="color:#ffc0c0">Action Success: Channel discord.test successfully joined. </span>
+<span style="color:#ffc0c0">Server: DisplayName has switched from `discord.general` to `discord.test`. </span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.test` via TCP. </span>
+</pre>
 
 **Expected output:**
 
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via TCP.
-/join discord.test
-Action Success: Channel discord.test successfully joined.
-Server: DisplayName has switched from `discord.general` to `discord.test`.
-Server: DisplayName has joined `discord.test` via TCP.
-```
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via TCP.</span>
+<span style="color:#40e0ad">/join discord.test</span>
+<span style="color:#ffc0c0">Action Success: Channel discord.test successfully joined. </span>
+<span style="color:#ffc0c0">Server: DisplayName has switched from `discord.general` to `discord.test`. </span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.test` via TCP. </span>
+</pre>
 
 ### Test Case 5: Joining a channel using UDP
 
@@ -263,26 +281,28 @@ To verify that the client can successfully join a channel and receive confirmati
 ./ipk25chat-client -t udp -s anton5.fit.vutbr.cz
 ```
 **Output:**
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via UDP.
-/join discord.test
-Action Success: Channel discord.test successfully joined.
-Server: DisplayName has switched from `discord.general` to `discord.test`.
-Server: DisplayName has joined `discord.test` via UDP.
-```
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via UDP.</span>
+<span style="color:#40e0ad">/join discord.test</span>
+<span style="color:#ffc0c0">Action Success: Channel discord.test successfully joined. </span>
+<span style="color:#ffc0c0">Server: DisplayName has switched from `discord.general` to `discord.test`. </span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.test` via UDP. </span>
+</pre>
 
 **Expected output:**
-```bash
-/auth xzhdan00 <secret> DisplayName
-Action Success: Authentication successful.
-Server: DisplayName has joined `discord.general` via UDP.
-/join discord.test
-Action Success: Channel discord.test successfully joined.
-Server: DisplayName has switched from `discord.general` to `discord.test`.
-Server: DisplayName has joined `discord.test` via UDP.
-```
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Authentication successful.</span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.general` via UDP.</span>
+<span style="color:#40e0ad">/join discord.test</span>
+<span style="color:#ffc0c0">Action Success: Channel discord.test successfully joined. </span>
+<span style="color:#ffc0c0">Server: DisplayName has switched from `discord.general` to `discord.test`. </span>
+<span style="color:#ffc0c0">Server: DisplayName has joined `discord.test` via UDP. </span>
+</pre>
 
 ### Test Case 6: Handling ERR message
 
@@ -300,14 +320,186 @@ To verify that the client can correctly interpret and respond to error messages 
 ```
 
 **Output:**
-```bash
-ERROR FROM Server: ERROR
-```
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#ffc0c0">ERROR FROM Server: ERROR </span>
+</pre>
+
 
 **Expected output:**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#ffc0c0">ERROR FROM Server: ERROR </span>
+</pre>
+
+
+### Test Case 7: Try to authenticate using an invalid secret
+
+**What was tested:**
+The ability to handle negative reply from the server 
+when trying to authenticate using an invalid secret.
+
+**Why it was tested:**
+To verify that the client can correctly interpret and respond to negative reply messages from the server.
+
+**Command:**
 ```bash
-ERROR FROM Server: ERROR
+./ipk25chat-client -t udp -s anton5.fit.vutbr.cz
 ```
+
+**Output:**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Failure: Authentication failed - Provided user secret is not valid. </span>
+</pre>
+
+
+**Expected output:**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Failure: Authentication failed - Provided user secret is not valid. </span>
+</pre>
+
+### Test Case 8: Graceful disconnection using TCP
+
+**What was tested:**
+The ability to gracefully disconnect from the server using the TCP protocol (e.g., sending the BYE message).
+
+**Why it was tested:**
+To verify that the client can successfully send a BYE message on interrupt signal or reaching the end of user input.
+
+
+**Command:**
+```bash
+./ipk25chat-client -t tcp -s localhost
+```
+
+**Output (Client side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Auth Success.</span>
+<span style="color:red">*** CTRL+C INREPPUPTION SIGNAL IS TRIGGERED ***</span>
+</pre>
+
+**Output (Server side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+AUTH xzhdan00 AS DisplayName USING &lt;secret&gt;
+REPLY OK IS Auth Success.
+BYE FROM DisplayName
+</pre>
+
+
+
+**Expected output (Server side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+AUTH xzhdan00 AS DisplayName USING &lt;secret&gt;
+REPLY OK IS Auth Success.
+BYE FROM DisplayName
+</pre>
+
+### Test Case 9: Try to use malformed command 
+
+**What was tested:**
+The ability to handle a malformed command.
+
+**Why it was tested:**
+To verify that the client can correctly interpret and respond to malformed commands.
+
+**Command:**
+```bash
+./ipk25chat-client -t tcp -s localhost
+```
+
+**Output:**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00</span>
+<span>Usage: /auth &lt;username&gt; &lt;secret&gt; &lt;displayname&gt;</span>
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt;</span>
+<span>Usage: /auth &lt;username&gt; &lt;secret&gt; &lt;displayname&gt;</span>
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Auth Success.</span>
+<span style="color:#40e0ad">/join</span>
+<span>Usage: /join &lt;channel&gt;</span>
+<span style="color:#40e0ad">/join !@#</span>
+<span>Invalid channel ID</span>
+<span style="color:#40e0ad">/some_malformed_command</span>
+<span>Unknown command. Use /help for available commands</span>
+</pre>
+
+
+**Expected output:**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00</span>
+<span>Usage: /auth &lt;username&gt; &lt;secret&gt; &lt;displayname&gt;</span>
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt;</span>
+<span>Usage: /auth &lt;username&gt; &lt;secret&gt; &lt;displayname&gt;</span>
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Auth Success.</span>
+<span style="color:#40e0ad">/join</span>
+<span>Usage: /join &lt;channel&gt;</span>
+<span style="color:#40e0ad">/join !@#</span>
+<span>Invalid channel ID</span>
+<span style="color:#40e0ad">/some_malformed_command</span>
+<span>Unknown command. Use /help for available commands</span>
+</pre>
+
+### Test Case 10: Handling malformed incoming messages
+
+**What was tested:**
+
+The ability to handle malformed incoming messages.
+
+**Why it was tested:**
+
+To verify that the client can correctly interpret and respond to malformed incoming messages.
+
+**Command:**
+```bash
+./ipk25chat-client -t tcp -s localhost
+```
+
+**Output (Client side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Auth Success.</span>
+<span>ERROR: Unknown message format: 'THIS IS MALFORMED MESSAGE'</span>
+</pre>
+
+**Expected output (Client side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+<span style="color:#40e0ad">/auth xzhdan00 &lt;secret&gt; DisplayName</span>
+<span style="color:#ffc0c0">Action Success: Auth Success.</span>
+<span>ERROR: Unknown message format: 'THIS IS MALFORMED MESSAGE'</span>
+</pre>
+
+**Output (Server side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+AUTH xzhdan00 AS DisplayName USING &lt;secret&gt;
+REPLY OK IS Auth success.
+THIS IS MALFORMED MESSAGE
+ERROR FROM DisplayName IS Unknown message format: 'THIS IS MALFORMED MESSAGE'
+BYE FROM DisplayName
+</pre>
+
+**Expected output (Server side):**
+
+<pre style="background-color:#373839; padding:10px; border-radius:5px;">
+AUTH xzhdan00 AS DisplayName USING &lt;secret&gt;
+REPLY OK IS Auth success.
+THIS IS MALFORMED MESSAGE
+ERROR FROM DisplayName IS Unknown message format: 'THIS IS MALFORMED MESSAGE'
+BYE FROM DisplayName
+</pre>
 
 ## Bibliography
 
@@ -315,4 +507,5 @@ ERROR FROM Server: ERROR
 - SharpPcap documentation: https://github.com/dotpcap/sharppcap
 - RFC 793 - Transmission Control Protocol: https://tools.ietf.org/html/rfc793
 - RFC 768 - User Datagram Protocol: https://tools.ietf.org/html/rfc768
-
+  
+Note: The project documentation was formatted with the assistance of Claude 3.7 Sonnet neural network. 

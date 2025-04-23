@@ -27,13 +27,7 @@ namespace IPK25_CHAT
         private bool _authenticated;
         private IPEndPoint? _localEndPoint;
         
-        private bool _Logging = true;
-        
-        public bool Logging 
-        { 
-            get { return _Logging; } 
-            set { _Logging = value; }
-        }
+        private bool _timeoutErrorReported = false;
         
         private enum ProtocolState
         {
@@ -222,16 +216,13 @@ namespace IPK25_CHAT
             }
         }
         
-        private void LogDebug(string message)
-        {
-            if (_Logging)
-            {
-                Console.Error.WriteLine($"UDP DEBUG: {message}");
-            }
-        }
-        
         private void LogReceivedBytes(byte[]? data)
         {
+            if (!_Logging)
+            {
+                return;
+            }
+            
             if (data == null || data.Length == 0)
             {
                 Console.WriteLine("Received empty data");
@@ -465,78 +456,6 @@ namespace IPK25_CHAT
             return result;
         }
 
-        private void ProcessMessage(string message)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(message))
-                    return;
-
-                LogDebug($"Processing message: '{message}'");
-                
-                string content = message;
-                string? displayName = null;
-                MessageType messageType = MessageType.Message;
-
-                if (message.StartsWith("REPLY"))
-                {
-                    messageType = MessageType.Reply;
-                    content = message.Substring(5).Trim();
-                    LogDebug($"Parsed as REPLY: '{content}'");
-                }
-                else if (message.StartsWith("ERR"))
-                {
-                    messageType = MessageType.Error;
-                    displayName = message.Split(' ')[2];
-                    content = message.Substring(message.IndexOf("IS", StringComparison.Ordinal) + 2).Trim();
-                    LogDebug($"Parsed as ERR: '{content}'");
-                }
-                else if (message.StartsWith("BYE"))
-                {
-                    messageType = MessageType.Bye;
-                    content = message.Substring(3).Trim();
-                    LogDebug($"Parsed as BYE: '{content}'");
-                }
-                else if (message.StartsWith("MSG FROM"))
-                {
-                    messageType = MessageType.Message;
-                    
-                    // Delete "MSG FROM" 
-                    string msgBody = message.Substring(9).Trim();
-                    
-                    // Find " IS " separator
-                    int isIndex = msgBody.IndexOf(" IS ", StringComparison.Ordinal);
-                    if (isIndex > 0)
-                    {
-                        // Extract displayName and content
-                        displayName = msgBody.Substring(0, isIndex).Trim();
-                        content = msgBody.Substring(isIndex + 4).Trim();
-                        LogDebug($"Parsed as MSG: displayName='{displayName}', content='{content}'");
-                    }
-                    else
-                    {
-                        // If " IS " separator not found, treat as unknown format
-                        displayName = "Unknown";
-                        content = msgBody;
-                        LogDebug($"Parsed as MSG without IS separator: content='{content}'");
-                    }
-                }
-                else
-                {
-                    // Unknown format
-                    LogDebug($"Unknown message format: '{message}'");
-                }
-
-                LogDebug($"Forwarding message: Type={messageType}, Content='{content}', DisplayName='{displayName}'");
-                OnMessageReceived(messageType, content, displayName!);
-            }
-            catch (Exception ex)
-            {
-                LogDebug($"Error processing message '{message}': {ex.Message}");
-                OnError($"Error processing message: {message}", ex);
-            }
-        }
-
         public override async Task SendAuthAsync(string? username, string? displayName, string? secret)
         {
             
@@ -561,9 +480,7 @@ namespace IPK25_CHAT
                     
                     if (!success)
                     {
-                        // If confirmation fails, try sending without waiting for confirmation
-                        LogDebug("Server did not confirm AUTH message receipt, proceeding anyway...");
-                        await SendRawAsync(message);
+                        return;
                     }
                     
                     LogDebug("AUTH message was sent to server");
@@ -621,9 +538,7 @@ namespace IPK25_CHAT
                 
                 if (!success)
                 {
-                    // If confirmation fails, try sending without waiting for confirmation
-                    LogDebug("Server did not confirm JOIN message receipt, proceeding anyway...");
-                    await SendRawAsync(data);
+                    return;
                 }
                 
                 LogDebug("JOIN message sent to server");
@@ -653,6 +568,7 @@ namespace IPK25_CHAT
             catch (Exception ex)
             {
                 LogDebug($"Error joining channel: {ex.Message}");
+                OnError($"Failed to join channel: {ex.Message}", ex);
                 throw;
             }
         }
@@ -681,9 +597,7 @@ namespace IPK25_CHAT
                     
                     if (!success)
                     {
-                        // If confirmation fails, try sending without waiting for confirmation
-                        LogDebug("Server did not confirm MSG receipt, proceeding anyway...");
-                        await SendRawAsync(data);
+                        return;
                     }
                     
                     LogDebug("Message sent successfully");
@@ -694,6 +608,35 @@ namespace IPK25_CHAT
                     OnError($"Failed to send message: {ex.Message}", ex);
                     throw;
                 }
+            }
+        }
+
+        public override async Task SendErrorAsync(string? displayName, string? message)
+        {
+            try
+            {
+                LogDebug($"Preparing ERR message: DisplayName={displayName}, Message={message}");
+        
+                // Создаем ERR-сообщение (тип 0xFE)
+                byte[]? data = CreateBinaryMessage(0xFE, displayName ?? "Client", message ?? "Unknown error");
+                ushort msgId = BitConverter.ToUInt16(data!, 1);
+        
+                LogDebug($"Sending ERR message with ID={msgId}");
+        
+                // Try with confirmation first
+                bool success = await SendWithConfirmationAsync(data, msgId);
+        
+                if (!success)
+                {
+                    return;
+                }
+        
+                LogDebug("ERR message sent to server");
+
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"Error sending ERR message: {ex.Message}");
             }
         }
         
@@ -709,9 +652,7 @@ namespace IPK25_CHAT
                 
                 if (!success)
                 {
-                    // If confirmation fails, try sending without waiting for confirmation
-                    LogDebug("Server did not confirm BYE message receipt, proceeding anyway...");
-                    await SendRawAsync(data);
+                    return;
                 }
                 
                 LogDebug("BYE message sent to server");
@@ -810,13 +751,7 @@ namespace IPK25_CHAT
                             // Message confirmed
                             return true;
                         }
-                        
-                        // If we're out of retries, fail
-                        if (retry >= _maxRetries)
-                        {
-                            break;
-                        }
-                        
+
                         // Otherwise retry
                         await SendRawAsync(data);
                     }
@@ -830,6 +765,15 @@ namespace IPK25_CHAT
             // If we get here, all retries failed
             _pendingConfirmations.Remove(messageId);
             _pendingMessages.Remove(messageId);
+            
+            if (!_timeoutErrorReported)
+            {
+                _timeoutErrorReported = true;
+                string errorMessage = "Confirmation of a sent UDP message timed out";
+                LogDebug($"Protocol error: {errorMessage}");
+                OnError(errorMessage, new TimeoutException("UDP confirmation timeout"));
+            }
+            
             return false;
         }
 
@@ -844,11 +788,10 @@ namespace IPK25_CHAT
             {
                 // Use dynamic server endpoint if available, otherwise use the initial endpoint
                 var endpoint = _dynamicServerEndPoint ?? _serverEndPoint;
+                
                 LogDebug($"Sending {data!.Length} bytes to {endpoint}");
-                if (_Logging)
-                {
-                    LogReceivedBytes(data); // Reuse the same method for logging sent data
-                }
+                LogReceivedBytes(data); // Reuse the same method for logging sent data
+                
                 await _client.SendAsync(data, data.Length, endpoint);
             }
             catch (Exception ex)
