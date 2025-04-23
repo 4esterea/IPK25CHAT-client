@@ -104,12 +104,19 @@ To run the chat client, execute the following command:
 ```
 
 Options:
--t <tcp|udp>           Specifies the transport protocol (required). Choose either 'tcp' or 'udp'.
--s <host>              Specifies the server address (required).
--p <port>              Specifies the server port (default: 4567).
--d <timeout>           Sets the UDP confirmation timeout in milliseconds (default: 250).
--r <retransmissions>   Sets the maximum number of UDP retransmissions (default: 3).
+
+-t                     Specifies the transport protocol (required). Choose either 'tcp' or 'udp'.
+
+-s                     Specifies the server address (required).
+
+-p                     Specifies the server port (default: 4567).
+
+-d                     Sets the UDP confirmation timeout in milliseconds (default: 250).
+
+-r                     Sets the maximum number of UDP retransmissions (default: 3).
+
 -l                     Enables logging (outputs to stderr).
+
 -h                     Displays help message.
 
 ## Testing
