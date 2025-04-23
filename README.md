@@ -1,24 +1,39 @@
 ﻿# IPK25 Chat Client
 
-## Overview
-IPK25 Chat Client is a network chat application that allows users to communicate using TCP or UDP protocols. The client supports authentication, channel joining, message exchange, and graceful disconnection. It is built with .NET and targets network reliability on both local and remote hosts.
-
 ## Executive Summary: Chat Client Communication Theory
 
 ### Fundamental Concepts
-The chat client operates as a network client that connects to a server using either TCP or UDP. Through a series of command exchanges, the client authenticates, joins channels, sends chat messages, and disconnects safely.
+The chat client operates as a network application that establishes connections to a remote server through either TCP or UDP.
+The client implements a standardized communication flow where it first authenticates with user credentials, then joins specific chat channels, exchanges messages with other connected users, and finally performs a graceful disconnection when the session ends. 
+All communication follows a defined protocol with specific message types and formats, with TCP using text-based messages and UDP employing binary packet structures with additional reliability mechanisms.
 
-### TCP Communication
-- Establishes a reliable connection using the TCP protocol.
-- Uses a connection attempt loop, with timeouts and debug logging for connection reliability.
-- Supports authentication, channel join, message sending, and BYE messages.
-- Performs message parsing and handles different types of server replies.
+### TCP Message Format
 
-### UDP Communication
-- Uses a connectionless approach with built-in confirmation and retry mechanisms.
-- Every message is tagged with a unique message identifier.
-- After sending a message, the client awaits a confirmation from the server.
-- Implements retransmission strategies and handles various UDP message types such as CONFIRM, REPLY, ERR, and BYE.
+The TCP protocol employs a text-based message format with predefined structures for each message type. All messages end with a carriage return and line feed (\r\n).
+
+| Message Type | Message Parameter Template                     |
+|--------------|-----------------------------------------------|
+| ERR          | ERR FROM {DisplayName} IS {MessageContent}\r\n |
+| REPLY        | REPLY {"OK"\|"NOK"} IS {MessageContent}\r\n    |
+| AUTH         | AUTH {Username} AS {DisplayName} USING {Secret}\r\n |
+| JOIN         | JOIN {ChannelID} AS {DisplayName}\r\n          |
+| MSG          | MSG FROM {DisplayName} IS {MessageContent}\r\n |
+| BYE          | BYE FROM {DisplayName}\r\n                     |
+
+### UDP Message Format
+
+The UDP protocol uses a binary message format with a fixed header structure. The first byte indicates the message type, followed by a 16-bit message ID, and the remaining bytes contain the message content.
+In addition, the UDP protocol includes `CONFIRM` messages to ensure reliable delivery of messages and `PING` messages to check the connection status.
+```text
+╔════════╤═════════════════╤═══════---═══════╗
+║  0..7  │  8..15   16..23 │      24..N      ║
+╟────────┼────────┼────────┼─────────────────╢
+║  Type  │        ID       │     Payload     ║
+╚════════╧═════════════════╧═══════---═══════╝
+```
+
+Though UDP uses binary encoding and TCP uses text format, they represent identical operations.
+In the implementation all incoming UDP messages are parsed from binary format and then converted to the same internal representation used for TCP messages
 
 ## Interesting Source Code Sections
 
