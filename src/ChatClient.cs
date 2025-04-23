@@ -302,7 +302,13 @@ namespace IPK25_CHAT
                 _currentChannel = "default";
                 LogDebug("You are in the default channel");
             }
-
+            
+            if (!ValidateMessageContent(message))
+            {
+                Console.WriteLine("Invalid message content");
+                return;
+            }
+            
             LogDebug($"Sending message to channel {_currentChannel}");
             
             await _protocol.SendMessageAsync(_displayName, message);
